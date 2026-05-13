@@ -10,6 +10,7 @@ from engine import TorrentEngine
 from db import TorrentDb
 from routes.torrents import make_torrents_router
 from routes.settings import make_settings_router
+from routes.search import make_search_router
 
 DOWNLOAD_DIR = os.environ.get("DOWNLOAD_DIR", "../downloads")
 DB_PATH = os.environ.get("DB_PATH", "torrents.json")
@@ -77,6 +78,10 @@ fastapi_app.include_router(
 fastapi_app.include_router(
     make_settings_router(engine),
     prefix="/api/settings",
+)
+fastapi_app.include_router(
+    make_search_router(),
+    prefix="/api/search",
 )
 
 app = socketio.ASGIApp(sio, fastapi_app)

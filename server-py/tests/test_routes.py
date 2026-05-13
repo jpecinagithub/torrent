@@ -2,7 +2,7 @@ import json
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import MagicMock, AsyncMock, patch
 
 from routes.torrents import make_torrents_router
 
@@ -111,6 +111,54 @@ def test_add_missing_body(client):
 
 
 from routes.settings import make_settings_router
+from routes.search import make_search_router
+
+
+@pytest.fixture
+def search_client():
+    app = FastAPI()
+    app.include_router(make_search_router(), prefix="/api/search")
+    return TestClient(app, raise_server_exceptions=False)
+
+
+def test_search_returns_results(search_client):
+    mock_results = [
+        {"type": "movie", "title": "Inception", "year": 2010,
+         "poster": None, "quality": "1080p", "seeds": 500,
+         "peers": 120, "size": "2.1 GB", "torrent_url": "https://yts.mx/t/abc.torrent"}
+    ]
+    with patch("routes.search.do_search", new=AsyncMock(return_value=mock_results)):
+        resp = search_client.get("/api/search?q=inception")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["title"] == "Inception"
+
+
+def test_search_short_query_returns_empty(search_client):
+    resp = search_client.get("/api/search?q=x")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_add_torrent_from_url(client, mock_engine):
+    torrent_bytes = b"d8:announce3:urlel"
+    mock_engine.add_torrent_file.return_value = "abc123"
+    mock_resp = AsyncMock()
+    mock_resp.read = AsyncMock(return_value=torrent_bytes)
+    mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
+    mock_resp.__aexit__ = AsyncMock(return_value=False)
+    mock_session = MagicMock()
+    mock_session.get = MagicMock(return_value=mock_resp)
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=False)
+    with patch("routes.torrents.aiohttp") as mock_aiohttp:
+        mock_aiohttp.ClientSession.return_value = mock_session
+        mock_aiohttp.ClientTimeout = __import__("aiohttp").ClientTimeout
+        resp = client.post("/api/torrents",
+            json={"torrent_url": "https://yts.mx/t/inception.torrent"})
+    assert resp.status_code == 201
+    assert resp.json()["id"] == "abc123"
 
 
 @pytest.fixture

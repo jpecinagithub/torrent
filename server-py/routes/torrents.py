@@ -2,6 +2,7 @@ import asyncio
 import re
 import time
 from typing import Optional
+import aiohttp
 from fastapi import APIRouter, Request, HTTPException, Response
 from models import TorrentRecord
 
@@ -33,18 +34,25 @@ def make_torrents_router(engine, db, sio):
 
         magnet: Optional[str] = None
         torrent_bytes: Optional[bytes] = None
+        torrent_url: Optional[str] = None
 
         if "application/json" in content_type:
             body = await request.json()
             magnet = body.get("magnet")
+            torrent_url = body.get("torrent_url")
         elif "multipart/form-data" in content_type:
             form = await request.form()
             file_field = form.get("torrent")
             if file_field:
                 torrent_bytes = await file_field.read()
 
+        if torrent_url:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(torrent_url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                    torrent_bytes = await resp.read()
+
         if not magnet and not torrent_bytes:
-            raise HTTPException(400, "Provide a magnet URI or .torrent file")
+            raise HTTPException(400, "Provide a magnet URI, .torrent file, or torrent_url")
 
         # Duplicate = already active in the engine right now
         if magnet:
