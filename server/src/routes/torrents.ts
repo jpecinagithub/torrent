@@ -42,7 +42,10 @@ export function torrentRouter(
       res.status(201).json(record)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Unknown error'
-      res.status(400).json({ error: msg })
+      const isDuplicate = msg.toLowerCase().includes('duplicate')
+      res.status(isDuplicate ? 409 : 400).json({
+        error: isDuplicate ? 'Este torrent ya está en la lista' : msg,
+      })
     }
   })
 
