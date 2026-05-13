@@ -16,7 +16,7 @@ export function useSocket(events: SocketEvents) {
   eventsRef.current = events
 
   useEffect(() => {
-    const socket = io({ path: '/socket.io' })
+    const socket = io({ path: (import.meta.env.VITE_BASE_PATH ?? '') + '/socket.io' })
     socketRef.current = socket
 
     socket.on('torrent:progress', (e: ProgressEvent) => eventsRef.current.onProgress(e))
