@@ -5,3 +5,8 @@ downloads/*
 *.db
 .env
 .superpowers/
+.claude/
+__pycache__/
+*.pyc
+*.pyo
+server-py/torrents.json
