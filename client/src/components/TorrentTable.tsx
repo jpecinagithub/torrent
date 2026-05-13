@@ -4,8 +4,63 @@ import {
   getCoreRowModel,
   useReactTable,
 } from '@tanstack/react-table'
+import { useState } from 'react'
 import { api } from '../api/client'
 import type { TorrentRow } from '../types'
+
+interface DeleteDialogProps {
+  name: string
+  onConfirm: (deleteFiles: boolean) => void
+  onCancel: () => void
+}
+
+function DeleteDialog({ name, onConfirm, onCancel }: DeleteDialogProps) {
+  const [deleteFiles, setDeleteFiles] = useState(false)
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-crust/80 backdrop-blur-sm"
+      onClick={onCancel}
+    >
+      <div
+        className="bg-mantle border border-surface0 rounded-lg shadow-xl w-full max-w-sm mx-4 p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start gap-3 mb-4">
+          <span className="text-red text-xl leading-none mt-0.5">🗑</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-text font-medium mb-1">Eliminar torrent</p>
+            <p className="text-overlay0 text-xs truncate" title={name}>{name}</p>
+          </div>
+        </div>
+
+        <label className="flex items-center gap-2 text-xs text-subtext0 mb-5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={deleteFiles}
+            onChange={(e) => setDeleteFiles(e.target.checked)}
+            className="accent-red"
+          />
+          Borrar también los archivos descargados
+        </label>
+
+        <div className="flex gap-2 justify-end">
+          <button
+            onClick={onCancel}
+            className="px-3 py-1.5 rounded text-xs text-subtext0 hover:text-text bg-surface0 hover:bg-surface1 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => onConfirm(deleteFiles)}
+            className="px-3 py-1.5 rounded text-xs text-base bg-red hover:bg-red/80 transition-colors font-medium"
+          >
+            Eliminar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const helper = createColumnHelper<TorrentRow>()
 
@@ -43,6 +98,8 @@ interface Props {
 }
 
 export function TorrentTable({ torrents, selected, onSelect, onError }: Props) {
+  const [deleting, setDeleting] = useState<TorrentRow | null>(null)
+
   const columns = [
     helper.accessor('name', {
       header: 'Nombre',
@@ -124,12 +181,7 @@ export function TorrentTable({ torrents, selected, onSelect, onError }: Props) {
               >▶</button>
             )}
             <button
-              onClick={(e) => {
-                e.stopPropagation()
-                if (window.confirm(`¿Eliminar "${t.name}"?`)) {
-                  void api.deleteTorrent(t.id).catch((err: Error) => onError(err.message))
-                }
-              }}
+              onClick={(e) => { e.stopPropagation(); setDeleting(t) }}
               className="text-overlay0 hover:text-red text-xs px-1"
             >✕</button>
           </div>
@@ -183,6 +235,17 @@ export function TorrentTable({ torrents, selected, onSelect, onError }: Props) {
           )}
         </tbody>
       </table>
+
+      {deleting && (
+        <DeleteDialog
+          name={deleting.name}
+          onConfirm={(deleteFiles) => {
+            void api.deleteTorrent(deleting.id, deleteFiles).catch((err: Error) => onError(err.message))
+            setDeleting(null)
+          }}
+          onCancel={() => setDeleting(null)}
+        />
+      )}
     </div>
   )
 }
