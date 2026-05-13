@@ -1,12 +1,16 @@
 import type { Server as IOServer } from 'socket.io'
-import type { WebTorrentService } from '../torrent/service'
+import type { QBittorrentService } from '../torrent/qbittorrent'
 
-export function setupSocket(io: IOServer, torrentService: WebTorrentService): void {
-  setInterval(() => {
-    const hashes = torrentService.getActiveHashes()
-    for (const hash of hashes) {
-      const payload = torrentService.getProgress(hash)
-      if (payload) io.emit('torrent:progress', payload)
+export function setupSocket(io: IOServer, torrentService: QBittorrentService): void {
+  setInterval(async () => {
+    try {
+      const hashes = await torrentService.getActiveHashes()
+      for (const hash of hashes) {
+        const payload = await torrentService.getProgress(hash)
+        if (payload) io.emit('torrent:progress', payload)
+      }
+    } catch {
+      // qBittorrent may be temporarily unreachable
     }
   }, 1000)
 

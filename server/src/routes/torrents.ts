@@ -2,22 +2,26 @@ import { Router } from 'express'
 import multer from 'multer'
 import type { Server as IOServer } from 'socket.io'
 import type { JsonDb } from '../db/json-db'
-import { insertTorrent, getTorrents, getTorrent, updateStatus, deleteTorrent } from '../db/queries'
-import type { WebTorrentService } from '../torrent/service'
+import { insertTorrent, deleteTorrent } from '../db/queries'
+import type { QBittorrentService } from '../torrent/qbittorrent'
 
 const upload = multer({ storage: multer.memoryStorage() })
 
 export function torrentRouter(
   db: JsonDb,
-  torrentService: WebTorrentService,
+  torrentService: QBittorrentService,
   io: IOServer,
   downloadDir: string
 ): Router {
   const router = Router()
 
-  // GET /api/torrents
-  router.get('/', (_req, res) => {
-    res.json(getTorrents(db))
+  // GET /api/torrents — always read live from qBittorrent
+  router.get('/', async (_req, res) => {
+    try {
+      res.json(await torrentService.listAll())
+    } catch {
+      res.status(503).json({ error: 'qBittorrent unreachable' })
+    }
   })
 
   // POST /api/torrents  (magnet or .torrent file)
@@ -53,11 +57,6 @@ export function torrentRouter(
   router.delete('/:hash', async (req, res) => {
     const { hash } = req.params
     const deleteFiles = req.query.deleteFiles === 'true'
-
-    if (!getTorrent(db, hash)) {
-      return res.status(404).json({ error: 'Torrent not found' })
-    }
-
     await torrentService.remove(hash, deleteFiles)
     deleteTorrent(db, hash)
     io.emit('torrent:removed', { hash })
@@ -65,21 +64,17 @@ export function torrentRouter(
   })
 
   // PATCH /api/torrents/:hash/pause
-  router.patch('/:hash/pause', (req, res) => {
+  router.patch('/:hash/pause', async (req, res) => {
     const { hash } = req.params
-    if (!getTorrent(db, hash)) return res.status(404).json({ error: 'Torrent not found' })
-    torrentService.pause(hash)
-    updateStatus(db, hash, 'paused', getTorrent(db, hash)!.progress)
+    await torrentService.pause(hash)
     io.emit('torrent:status', { hash, status: 'paused' })
     res.json({ status: 'paused' })
   })
 
   // PATCH /api/torrents/:hash/resume
-  router.patch('/:hash/resume', (req, res) => {
+  router.patch('/:hash/resume', async (req, res) => {
     const { hash } = req.params
-    if (!getTorrent(db, hash)) return res.status(404).json({ error: 'Torrent not found' })
-    torrentService.resume(hash)
-    updateStatus(db, hash, 'downloading', getTorrent(db, hash)!.progress)
+    await torrentService.resume(hash)
     io.emit('torrent:status', { hash, status: 'downloading' })
     res.json({ status: 'downloading' })
   })

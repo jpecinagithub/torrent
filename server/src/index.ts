@@ -3,9 +3,8 @@ import { createServer } from 'http'
 import { Server as IOServer } from 'socket.io'
 import path from 'path'
 import { openDb } from './db/schema'
-import type { JsonDb } from './db/json-db'
-import { getTorrents, updateStatus } from './db/queries'
-import { WebTorrentService } from './torrent/service'
+import { insertTorrent, getTorrent } from './db/queries'
+import { QBittorrentService } from './torrent/qbittorrent'
 import { torrentRouter } from './routes/torrents'
 import { settingsRouter } from './routes/settings'
 import { setupSocket } from './socket/handlers'
@@ -21,22 +20,19 @@ const io = new IOServer(httpServer, { cors: { origin: '*' } })
 app.use(express.json())
 
 const db = openDb(DB_PATH)
-const torrentService = new WebTorrentService()
+const torrentService = new QBittorrentService()
 
 async function reloadTorrents() {
-  const torrents = getTorrents(db).filter(
-    (t) => t.status === 'downloading' || t.status === 'paused'
-  )
-  for (const t of torrents) {
-    try {
-      const input = t.magnet_uri ?? t.id
-      await torrentService.add(input, t.download_dir)
-      if (t.status === 'paused') torrentService.pause(t.id)
-    } catch {
-      updateStatus(db, t.id, 'paused', t.progress)
+  // qBittorrent persists its own state; sync any missing records into our local db
+  try {
+    const all = await torrentService.listAll()
+    for (const t of all) {
+      if (!getTorrent(db, t.id)) insertTorrent(db, t)
     }
+    console.log(`[Startup] Synced ${all.length} torrents from qBittorrent`)
+  } catch {
+    console.warn('[Startup] Could not reach qBittorrent — is it running?')
   }
-  console.log(`[Startup] Reloaded ${torrents.length} torrents`)
 }
 
 app.use('/api/torrents', torrentRouter(db, torrentService, io, DOWNLOAD_DIR))

@@ -1,7 +1,7 @@
 import { Router } from 'express'
-import type { WebTorrentService } from '../torrent/service'
+import type { QBittorrentService } from '../torrent/qbittorrent'
 
-export function settingsRouter(torrentService: WebTorrentService): Router {
+export function settingsRouter(torrentService: QBittorrentService): Router {
   const router = Router()
 
   // PATCH /api/settings/speed
