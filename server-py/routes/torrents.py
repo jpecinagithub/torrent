@@ -1,9 +1,11 @@
 import asyncio
+import os
 import re
 import time
 from typing import Optional
 import aiohttp
 from fastapi import APIRouter, Request, HTTPException, Response
+from fastapi.responses import FileResponse
 from models import TorrentRecord
 
 
@@ -116,5 +118,27 @@ def make_torrents_router(engine, db, sio):
             db.insert(record)
         await sio.emit("torrent:status", {"hash": hash_str, "status": "downloading"})
         return {"status": "downloading"}
+
+    @router.get("/{hash_str}/files")
+    async def list_files(hash_str: str):
+        if hash_str not in engine.handles:
+            raise HTTPException(404, "Torrent not found")
+        return engine.get_files(hash_str)
+
+    @router.get("/{hash_str}/files/{file_index}")
+    async def download_file(hash_str: str, file_index: int):
+        if hash_str not in engine.handles:
+            raise HTTPException(404, "Torrent not found")
+        path = engine.get_file_path(hash_str, file_index)
+        if path is None:
+            raise HTTPException(400, "Invalid file index or no metadata")
+        if not os.path.exists(path):
+            raise HTTPException(404, "File not found on disk")
+        filename = os.path.basename(path)
+        return FileResponse(
+            path,
+            media_type="application/octet-stream",
+            filename=filename,
+        )
 
     return router

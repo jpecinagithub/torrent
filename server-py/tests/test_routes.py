@@ -183,3 +183,39 @@ def test_set_speed_limits(settings_client, mock_engine):
 def test_set_speed_limits_bad_body(settings_client):
     res = settings_client.patch("/api/settings/speed", json={"bad": "data"})
     assert res.status_code == 422  # FastAPI Pydantic validation error
+
+
+def test_list_torrent_files(client, mock_engine):
+    mock_engine.handles = {RECORD["id"]: MagicMock()}
+    mock_engine.get_files.return_value = [
+        {"index": 0, "name": "movie.mkv", "size": 1_500_000_000},
+    ]
+    res = client.get(f"/api/torrents/{RECORD['id']}/files")
+    assert res.status_code == 200
+    data = res.json()
+    assert len(data) == 1
+    assert data[0]["name"] == "movie.mkv"
+    assert data[0]["size"] == 1_500_000_000
+
+
+def test_list_torrent_files_not_found(client, mock_engine):
+    res = client.get("/api/torrents/nonexistent_hash_xxx/files")
+    assert res.status_code == 404
+
+
+def test_download_torrent_file(client, mock_engine, tmp_path):
+    mock_engine.handles = {RECORD["id"]: MagicMock()}
+    fake_file = tmp_path / "movie.mkv"
+    fake_file.write_bytes(b"fake movie content")
+    mock_engine.get_file_path.return_value = str(fake_file)
+    res = client.get(f"/api/torrents/{RECORD['id']}/files/0")
+    assert res.status_code == 200
+    assert res.content == b"fake movie content"
+    assert "attachment" in res.headers.get("content-disposition", "")
+
+
+def test_download_torrent_file_invalid_index(client, mock_engine):
+    mock_engine.handles = {RECORD["id"]: MagicMock()}
+    mock_engine.get_file_path.return_value = None
+    res = client.get(f"/api/torrents/{RECORD['id']}/files/99")
+    assert res.status_code == 400
