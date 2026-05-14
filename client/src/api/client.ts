@@ -1,5 +1,11 @@
 import type { TorrentRow } from '../types'
 
+export interface FileEntry {
+  index: number
+  name: string
+  size: number
+}
+
 const BASE = (import.meta.env.VITE_BASE_PATH ?? '') + '/api'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -37,6 +43,9 @@ export const api = {
 
   resumeTorrent: (hash: string): Promise<void> =>
     request(`/torrents/${hash}/resume`, { method: 'PATCH' }),
+
+  getFiles: (hash: string): Promise<FileEntry[]> =>
+    request(`/torrents/${hash}/files`),
 
   setSpeedLimits: (downloadLimit: number, uploadLimit: number): Promise<void> =>
     request('/settings/speed', {
