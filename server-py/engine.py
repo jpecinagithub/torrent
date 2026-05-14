@@ -191,5 +191,37 @@ class TorrentEngine:
                 result.append(s)
         return result
 
+    def get_files(self, hash_str: str) -> list[dict]:
+        """Return list of files in the torrent with index, name (basename), and size."""
+        handle = self.handles.get(hash_str)
+        if not handle or not handle.is_valid():
+            return []
+        tf = handle.torrent_file()
+        if not tf:
+            return []
+        files = tf.files()
+        result = []
+        for i in range(files.num_files()):
+            result.append({
+                "index": i,
+                "name": os.path.basename(files.file_path(i)),
+                "size": files.file_size(i),
+            })
+        return result
+
+    def get_file_path(self, hash_str: str, file_index: int) -> Optional[str]:
+        """Return the absolute path on disk for a specific file in the torrent."""
+        handle = self.handles.get(hash_str)
+        if not handle or not handle.is_valid():
+            return None
+        tf = handle.torrent_file()
+        if not tf:
+            return None
+        files = tf.files()
+        if file_index < 0 or file_index >= files.num_files():
+            return None
+        s = handle.status()
+        return os.path.join(s.save_path, files.file_path(file_index))
+
     def destroy(self) -> None:
         self.handles.clear()
