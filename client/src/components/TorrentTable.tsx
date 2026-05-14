@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-table'
 import { useState } from 'react'
 import { api } from '../api/client'
+import { FileListPopover } from './FileListPopover'
 import type { TorrentRow } from '../types'
 
 interface DeleteDialogProps {
@@ -99,6 +100,7 @@ interface Props {
 
 export function TorrentTable({ torrents, selected, onSelect, onError }: Props) {
   const [deleting, setDeleting] = useState<TorrentRow | null>(null)
+  const [downloading, setDownloading] = useState<string | null>(null)
 
   const columns = [
     helper.accessor('name', {
@@ -167,7 +169,27 @@ export function TorrentTable({ torrents, selected, onSelect, onError }: Props) {
       cell: ({ row }) => {
         const t = row.original
         return (
-          <div className="flex gap-1 justify-end">
+          <div className="flex gap-1 justify-end relative">
+            {(t.status === 'seeding' || t.status === 'completed') && (
+              <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setDownloading(downloading === t.id ? null : t.id)
+                  }}
+                  className="text-overlay0 hover:text-blue text-xs px-1"
+                  title="Descargar al PC"
+                >
+                  ⬇
+                </button>
+                {downloading === t.id && (
+                  <FileListPopover
+                    hash={t.id}
+                    onClose={() => setDownloading(null)}
+                  />
+                )}
+              </>
+            )}
             {t.status === 'downloading' && (
               <button
                 onClick={(e) => { e.stopPropagation(); void api.pauseTorrent(t.id).catch((err: Error) => onError(err.message)) }}
